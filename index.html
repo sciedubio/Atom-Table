@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>주기율표 실험실 & 타임어택 게임</title>
+    
+    <!-- PWA 및 모바일 최적화 설정 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#020617">
+    
+    <!-- Google Fonts (Noto Sans KR) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                            950: '#020617',
+                        }
+                    },
+                    gridTemplateColumns: {
+                        '8': 'repeat(8, minmax(0, 1fr))',
+                        '18': 'repeat(18, minmax(0, 1fr))',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- React & Babel CDNs -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #020617;
+            color: #f8fafc;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #38bdf8; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #0ea5e9; }
+        
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(56, 189, 248, 0.15);
+        }
+        
+        /* Lab Animations */
+        @keyframes pulse-slow {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+        }
+        .animate-pulse-slow { animation: pulse-slow 4s infinite ease-in-out; }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        .animate-float { animation: float 6s infinite ease-in-out; }
+
+        /* Time Attack Game Animations */
+        @keyframes shakeCell {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px) rotate(-3deg); }
+            75% { transform: translateX(6px) rotate(3deg); }
+        }
+        .shake-animation { animation: shakeCell 0.35s ease; }
+        
+        @keyframes hintFlash {
+            0%, 100% { box-shadow: none; border-color: rgba(56, 189, 248, 0.1); }
+            50% { box-shadow: 0 0 20px #fde047; border-color: #fde047; background-color: rgba(253, 224, 71, 0.2); }
+        }
+        .hint-flash-animation { animation: hintFlash 0.8s ease 2; z-index: 10; }
+
+        /* Game Categories */
+        .cat-alkali { background: rgba(153, 27, 27, 0.4); border-color: #f87171; }
+        .cat-alkaline { background: rgba(146, 64, 14, 0.4); border-color: #fb923c; }
+        .cat-lanthanide { background: rgba(153, 27, 27, 0.2); border-color: #fb7185; }
+        .cat-actinide { background: rgba(22, 101, 52, 0.4); border-color: #4ade80; }
+        .cat-transition { background: rgba(30, 58, 138, 0.4); border-color: #60a5fa; }
+        .cat-post { background: rgba(22, 101, 52, 0.2); border-color: #34d399; }
+        .cat-metalloid { background: rgba(63, 98, 18, 0.4); border-color: #a3e635; }
+        .cat-nonmetal { background: rgba(88, 28, 135, 0.4); border-color: #c084fc; }
+        .cat-halogen { background: rgba(133, 77, 14, 0.4); border-color: #facc15; }
+        .cat-noble { background: rgba(15, 118, 110, 0.4); border-color: #2dd4bf; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between overflow-x-hidden">
+
+    <div id="root" class="flex-grow flex flex-col"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+        // [통합 데이터베이스 URL] 교사가 배포한 웹 앱 URL을 여기에 입력합니다.
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz0zDbtl8LHGXTqMt8hAVxIbRhVUgjnGoxfUor40hRwD9xMJdUaY036Mxsg1aPUI2dW/exec";
+
+        // ==========================================
+        // 1. [원자 실험실] 전용 데이터 (1~20번)
+        // ==========================================
+        const ELEMENT_DATA = [
+            { no: 1, symbol: "H", name: "수소", group: 1, period: 1, protons: 1, neutrons: 0, shells: [1], category: "nonmetal", desc: "우주에서 가장 풍부한 원소이며, 가장 가볍습니다." },
+            { no: 2, symbol: "He", name: "헬륨", group: 18, period: 1, protons: 2, neutrons: 2, shells: [2], category: "noble", desc: "안정적인 비활성 기체로 다른 물질과 거의 반응하지 않으며, 풍선에 쓰입니다." },
+            { no: 3, symbol: "Li", name: "리튬", group: 1, period: 2, protons: 3, neutrons: 4, shells: [2, 1], category: "alkali", desc: "가장 가벼운 금속 원소로 반응성이 크고 휴대폰 배터리에 쓰입니다." },
+            { no: 4, symbol: "Be", name: "베릴륨", group: 2, period: 2, protons: 4, neutrons: 5, shells: [2, 2], category: "alkaline-earth", desc: "가볍고 단단하여 항공우주 분야의 합금 재료로 쓰입니다." },
+            { no: 5, symbol: "B", name: "붕소", group: 13, period: 2, protons: 5, neutrons: 6, shells: [2, 3], category: "metalloid", desc: "반금속 원소로 내열 유리(붕규산 유리) 제조에 널리 사용됩니다." },
+            { no: 6, symbol: "C", name: "탄소", group: 14, period: 2, protons: 6, neutrons: 6, shells: [2, 4], category: "nonmetal", desc: "생명체의 유기화합물을 구성하는 기본 원소이며 다이아몬드, 연필심의 재료입니다." },
+            { no: 7, symbol: "N", name: "질소", group: 15, period: 2, protons: 7, neutrons: 7, shells: [2, 5], category: "nonmetal", desc: "대기의 약 78%를 차지하는 기체로 반응성이 적어 과자 과대포장에 사용됩니다." },
+            { no: 8, symbol: "O", name: "산소", group: 16, period: 2, protons: 8, neutrons: 8, shells: [2, 6], category: "nonmetal", desc: "지구 생명체의 호흡과 물질의 연소에 필수적인 기체 원소입니다." },
+            { no: 9, symbol: "F", name: "플루오린", group: 17, period: 2, protons: 9, neutrons: 10, shells: [2, 7], category: "halogen", desc: "반응성이 극도로 큰 할로젠 원소로 치약의 충치 예방 성분(불소)으로 쓰입니다." },
+            { no: 10, symbol: "Ne", name: "네온", group: 18, period: 2, protons: 10, neutrons: 10, shells: [2, 8], category: "noble", desc: "비활성 기체로 진공 방전 시 밝은 주황빛을 내어 광고판(네온사인)에 활용됩니다." },
+            { no: 11, symbol: "Na", name: "나트륨", group: 1, period: 3, protons: 11, neutrons: 12, shells: [2, 8, 1], category: "alkali", desc: "물과 격렬히 반응하는 칼로 썰리는 연한 금속입니다. 소금(NaCl)의 핵심 성분입니다." },
+            { no: 12, symbol: "Mg", name: "마그네슘", group: 2, period: 3, protons: 12, neutrons: 12, shells: [2, 8, 2], category: "alkaline-earth", desc: "가볍고 튼튼하여 노트북 외장재에 쓰이고, 연소 시 매우 강렬한 흰 빛을 냅니다." },
+            { no: 13, symbol: "Al", name: "알루미늄", group: 13, period: 3, protons: 13, neutrons: 14, shells: [2, 8, 3], category: "post-transition", desc: "가볍고 가공이 쉬우며 녹이 잘 슬지 않아 알루미늄 포일이나 음료수 캔에 쓰입니다." },
+            { no: 14, symbol: "Si", name: "규소", group: 14, period: 3, protons: 14, neutrons: 14, shells: [2, 8, 4], category: "metalloid", desc: "지구 지각에 두 번째로 많은 원소로, 반도체 산업의 핵심 원료입니다." },
+            { no: 15, symbol: "P", name: "인", group: 15, period: 3, protons: 15, neutrons: 16, shells: [2, 8, 5], category: "nonmetal", desc: "생명체의 DNA 뼈대와 뼈를 구성하고 성냥갑의 마찰면에 쓰입니다." },
+            { no: 16, symbol: "S", name: "황", group: 16, period: 3, protons: 16, neutrons: 16, shells: [2, 8, 6], category: "nonmetal", desc: "화산 지대에서 발견되는 노란색 고체 원소로 화약과 화장품의 재료로 쓰입니다." },
+            { no: 17, symbol: "Cl", name: "염소", group: 17, period: 3, protons: 17, neutrons: 18, shells: [2, 8, 7], category: "halogen", desc: "자극적인 냄새의 황록색 기체로 소독 작용이 강해 수영장 소독이나 표백제에 쓰입니다." },
+            { no: 18, symbol: "Ar", name: "아르곤", group: 18, period: 3, protons: 18, neutrons: 22, shells: [2, 8, 8], category: "noble", desc: "비활성 기체로 반응성이 거의 없어 백열전구 내부에 충전하는 기체로 쓰였습니다." },
+            { no: 19, symbol: "K", name: "칼륨", group: 1, period: 4, protons: 19, neutrons: 20, shells: [2, 8, 8, 1], category: "alkali", desc: "물과 폭발적으로 반응하는 알칼리 금속으로 생명체의 신경 전달에 중요한 역할을 합니다." },
+            { no: 20, symbol: "Ca", name: "칼슘", group: 2, period: 4, protons: 20, neutrons: 20, shells: [2, 8, 8, 2], category: "alkaline-earth", desc: "뼈와 치아의 주성분이며, 대리석과 석회암 등 자연계에 광물로 많이 존재합니다." }
+        ];
+
+        const QUIZ_POOL = [
+            { id: 1, q: "주기율표의 세로줄을 '주기'라고 부른다.", a: false, explain: "주기율표의 세로줄은 '족'이라고 부르며, 가로줄을 '주기'라고 부릅니다." },
+            { id: 2, q: "원자핵은 (+)전하를 띠며, 전자는 (-)전하를 띤다.", a: true, explain: "원자의 중심에 있는 원자핵은 (+)전하를 띠고, 그 주위를 도는 전자는 (-)전하를 띱니다." },
+            { id: 3, q: "주기율표에서 같은 족 원소들은 화학적 성질이 서로 비슷하다.", a: true, explain: "같은 족 원소들은 가장 바깥 전자 껍질에 들어있는 전자 수(원자가 전자 수)가 같기 때문에 화학적 성질이 비슷합니다." },
+            { id: 4, q: "헬륨(He)은 18족 비활성 기체로 매우 안정하여 다른 원소와 잘 반응하지 않는다.", a: true, explain: "헬륨, 네온, 아르곤 등 18족 원소는 가장 바깥 전자 배치가 가득 차서 화학적으로 매우 안정합니다." },
+            { id: 5, q: "원소는 더 이상 다른 물질로 분해할 수 없는 물질의 기본 성분이다.", a: true, explain: "원소는 더 이상 화학적인 방법으로 분해할 수 없는 기본 물질로 정의됩니다." },
+            { id: 6, q: "산소(O, 8번)의 가장 바깥 전자 껍질에 채워진 전자의 수는 6개이다.", a: true, explain: "8번 산소는 첫 번째 전자 껍질에 2개, 두 번째 전자 껍질에 6개의 전자가 배치되어 있습니다." },
+            { id: 7, q: "수소(H, 1번)는 1족에 속하므로 나트륨처럼 전형적인 알칼리 금속의 특징을 공유한다.", a: false, explain: "수소는 1족에 위치하지만 금속이 아닌 비금속 원소이므로 알칼리 금속에 해당하지 않습니다." },
+            { id: 8, q: "원자는 중심의 (+)원자핵 전하량과 주위의 (-)전자 총 전하량이 같아 전기적으로 중성이다.", a: true, explain: "양성자 수와 전자 수가 항상 일치하여 원자는 전기적으로 중성 상태를 유지합니다." },
+            { id: 9, q: "주기율표의 가로줄은 '주기'라고 하며, 원자의 전자 껍질 수와 관련이 있다.", a: true, explain: "같은 주기에 속한 원소들은 전자 배치가 채워지는 전자 껍질의 총 수가 같습니다 (예: 2주기는 2개의 껍질)." },
+            { id: 10, q: "탄소(C, 6번) 원자의 첫 번째 전자 껍질(K껍질)에는 최대 4개의 전자가 들어갈 수 있다.", a: false, explain: "첫 번째 전자 껍질에는 전자가 최대 2개까지만 채워질 수 있으며, 나머지 4개는 두 번째 껍질에 들어갑니다." }
+        ];
+
+        // ==========================================
+        // 2. [타임어택 게임용] 전체 118개 원소 데이터
+        // ==========================================
+        const RAW_GAME_ELEMENTS = [
+            [1,'H','수소',1,1,1,8],[2,'He','헬륨',1,1,18,10],[3,'Li','리튬',2,2,1,1],[4,'Be','베릴륨',2,2,2,2],[5,'B','붕소',2,2,13,7],[6,'C','탄소',2,2,14,8],[7,'N','질소',2,2,15,8],[8,'O','산소',2,2,16,8],[9,'F','플루오린',2,2,17,9],[10,'Ne','네온',2,2,18,10],
+            [11,'Na','나트륨',3,3,1,1],[12,'Mg','마그네슘',3,3,2,2],[13,'Al','알루미늄',3,3,13,6],[14,'Si','규소',3,3,14,7],[15,'P','인',3,3,15,8],[16,'S','황',3,3,16,8],[17,'Cl','염소',3,3,17,9],[18,'Ar','아르곤',3,3,18,10],
+            [19,'K','칼륨',4,4,1,1],[20,'Ca','칼슘',4,4,2,2],[21,'Sc','스칸듐',4,4,3,5],[22,'Ti','타이타늄',4,4,4,5],[23,'V','바나듐',4,4,5,5],[24,'Cr','크로뮴',4,4,6,5],[25,'Mn','망가니즈',4,4,7,5],[26,'Fe','철',4,4,8,5],[27,'Co','코발트',4,4,9,5],[28,'Ni','니켈',4,4,10,5],[29,'Cu','구리',4,4,11,5],[30,'Zn','아연',4,4,12,5],[31,'Ga','갈륨',4,4,13,6],[32,'Ge','저마늄',4,4,14,7],[33,'As','비소',4,4,15,7],[34,'Se','셀레늄',4,4,16,8],[35,'Br','브로민',4,4,17,9],[36,'Kr','크립톤',4,4,18,10],
+            [37,'Rb','루비듐',5,5,1,1],[38,'Sr','스트론튬',5,5,2,2],[39,'Y','이트륨',5,5,3,5],[40,'Zr','지르코늄',5,5,4,5],[41,'Nb','나이오븀',5,5,5,5],[42,'Mo','몰리브데넘',5,5,6,5],[43,'Tc','테크네튬',5,5,7,5],[44,'Ru','루테늄',5,5,8,5],[45,'Rh','로듐',5,5,9,5],[46,'Pd','팔라듐',5,5,10,5],[47,'Ag','은',5,5,11,5],[48,'Cd','카드뮴',5,5,12,5],[49,'In','인듐',5,5,13,6],[50,'Sn','주석',5,5,14,6],[51,'Sb','안티모니',5,5,15,7],[52,'Te','텔루륨',5,5,16,7],[53,'I','아이오딘',5,5,17,9],[54,'Xe','제논',5,5,18,10],
+            [55,'Cs','세슘',6,6,1,1],[56,'Ba','바륨',6,6,2,2],[57,'La','란타넘',6,8,3,3],[58,'Ce','세륨',6,8,4,3],[59,'Pr','프라세오디뮴',6,8,5,3],[60,'Nd','네오디뮴',6,8,6,3],[61,'Pm','프로메튬',6,8,7,3],[62,'Sm','사마륨',6,8,8,3],[63,'Eu','유로퓸',6,8,9,3],[64,'Gd','가돌리늄',6,8,10,3],[65,'Tb','터븀',6,8,11,3],[66,'Dy','디스프로슘',6,8,12,3],[67,'Ho','홀뮴',6,8,13,3],[68,'Er','어븀',6,8,14,3],[69,'Tm','툴륨',6,8,15,3],[70,'Yb','이터븀',6,8,16,3],[71,'Lu','루테튬',6,8,17,3],[72,'Hf','하프늄',6,6,4,5],[73,'Ta','탄탈럼',6,6,5,5],[74,'W','텅스텐',6,6,6,5],[75,'Re','레늄',6,6,7,5],[76,'Os','오스뮴',6,6,8,5],[77,'Ir','이리듐',6,6,9,5],[78,'Pt','백금',6,6,10,5],[79,'Au','금',6,6,11,5],[80,'Hg','수은',6,6,12,5],[81,'Tl','탈륨',6,6,13,6],[82,'Pb','납',6,6,14,6],[83,'Bi','비스무트',6,6,15,6],[84,'Po','폴로늄',6,6,16,7],[85,'At','아스타틴',6,6,17,9],[86,'Rn','라돈',6,6,18,10],
+            [87,'Fr','프랑슘',7,7,1,1],[88,'Ra','라듐',7,7,2,2],[89,'Ac','악티늄',7,9,3,4],[90,'Th','토륨',7,9,4,4],[91,'Pa','프로트악티늄',7,9,5,4],[92,'U','우라늄',7,9,6,4],[93,'Np','넵투늄',7,9,7,4],[94,'Pu','플루토늄',7,9,8,4],[95,'Am','아메리슘',7,9,9,4],[96,'Cm','퀴륨',7,9,10,4],[97,'Bk','버클륨',7,9,11,4],[98,'Cf','캘리포늄',7,9,12,4],[99,'Es','아인슈타이늄',7,9,13,4],[100,'Fm','페르뮴',7,9,14,4],[101,'Md','멘델레븀',7,9,15,4],[102,'No','노벨륨',7,9,16,4],[103,'Lr','로렌슘',7,9,17,4],[104,'Rf','러더포듐',7,7,4,5],[105,'Db','더브늄',7,7,5,5],[106,'Sg','시보귬',7,7,6,5],[107,'Bh','보륨',7,7,7,5],[108,'Hs','하슘',7,7,8,5],[109,'Mt','마이트너륨',7,7,9,5],[110,'Ds','다름슈타튬',7,7,10,5],[111,'Rg','뢴트게늄',7,7,11,5],[112,'Cn','코페르니슘',7,7,12,5],[113,'Nh','니호늄',7,7,13,6],[114,'Fl','플레로븀',7,7,14,6],[115,'Mc','모스코븀',7,7,15,6],[116,'Lv','리버모륨',7,7,16,6],[117,'Ts','테네신',7,7,17,9],[118,'Og','오가네손',7,7,18,10]
+        ];
+
+        const CATEGORY_MAP = {
+            1: { id: 'cat-alkali', label: '알칼리 금속' },
+            2: { id: 'cat-alkaline', label: '알칼리 토금속' },
+            3: { id: 'cat-lanthanide', label: '란타넘족' },
+            4: { id: 'cat-actinide', label: '악티늄족' },
+            5: { id: 'cat-transition', label: '전이 금속' },
+            6: { id: 'cat-post', label: '후전이 금속' },
+            7: { id: 'cat-metalloid', label: '준금속' },
+            8: { id: 'cat-nonmetal', label: '비금속' },
+            9: { id: 'cat-halogen', label: '할로젠' },
+            10: { id: 'cat-noble', label: '비활성 기체' }
+        };
+
+        const GAME_ELEMENTS = RAW_GAME_ELEMENTS.map(e => ({
+            n: e[0], sym: e[1], name: e[2], period: e[3], row: e[4], col: e[5], catId: e[6],
+            category: CATEGORY_MAP[e[6]]
+        }));
+
+        // Audio Helper
+        const playTone = (freqs, type, dur) => {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!window._audioCtx) window._audioCtx = new AudioContext();
+                const ctx = window._audioCtx;
+                if (ctx.state === 'suspended') ctx.resume();
+
+                freqs.forEach((f, i) => {
+                    const o = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    o.connect(g); g.connect(ctx.destination);
+                    o.type = type || 'sine';
+                    o.frequency.setValueAtTime(f, ctx.currentTime + i * 0.12);
+                    g.gain.setValueAtTime(0.25, ctx.currentTime + i * 0.12);
+                    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + dur);
+                    o.start(ctx.currentTime + i * 0.12);
+                    o.stop(ctx.currentTime + i * 0.12 + dur);
+                });
+            } catch(e) {}
+        };
+        const playCorrect = () => playTone([523, 659, 784], 'sine', 0.35);
+        const playWrong = () => playTone([200, 150], 'sawtooth', 0.25);
+        const playComplete = () => playTone([523, 659, 784, 1047], 'sine', 0.5);
+
+        // --- 원자 시뮬레이터 코어 (Pure Canvas Engine) ---
+        class AtomVisualizer {
+            constructor(canvas, elementData, highlightOuter = true) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.element = elementData;
+                this.highlightOuter = highlightOuter; 
+                this.electrons = [];
+                this.photons = [];
+                this.nucleusPulse = 0;
+                this.running = true;
+                this.electronSpeedMultiplier = 1.0;
+                this.initElectrons();
+            }
+
+            initElectrons() {
+                this.electrons = [];
+                const shells = this.element.shells;
+                const totalShells = shells.length;
+
+                shells.forEach((count, sIdx) => {
+                    const radius = 65 + sIdx * 35;
+                    const speed = 0.05 / (sIdx + 1);
+                    const isOuterShell = (sIdx === totalShells - 1);
+
+                    for (let i = 0; i < count; i++) {
+                        const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+                        this.electrons.push({
+                            shellIndex: sIdx, radius: radius, angle: angle,
+                            speed: speed, baseSpeed: speed, isOuter: isOuterShell
+                        });
+                    }
+                });
+            }
+
+            emitPhoton(color) {
+                for (let i = 0; i < 3; i++) {
+                    this.photons.push({
+                        x: this.canvas.width / 2, y: this.canvas.height / 2,
+                        radius: 10, opacity: 1, speed: 2 + i * 1.5, color: color
+                    });
+                }
+            }
+
+            draw() {
+                if (!this.running) return;
+                const ctx = this.ctx;
+                const canvas = this.canvas;
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+
+                ctx.fillStyle = 'rgba(2, 6, 23, 0.25)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.strokeStyle = 'rgba(14, 165, 233, 0.05)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(cx, cy, 180, 0, Math.PI * 2);
+                ctx.stroke();
+
+                const sCount = this.element.shells.length;
+                for (let i = 0; i < sCount; i++) {
+                    const r = 65 + i * 35;
+                    const isOuterShell = (i === sCount - 1);
+                    
+                    if (isOuterShell && this.highlightOuter) {
+                        ctx.strokeStyle = 'rgba(245, 158, 11, 0.45)';
+                        ctx.lineWidth = 2;
+                    } else {
+                        ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+                        ctx.lineWidth = 1.2;
+                    }
+                    
+                    ctx.setLineDash([4, 6]);
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    
+                    ctx.fillStyle = isOuterShell && this.highlightOuter ? 'rgba(245, 158, 11, 0.8)' : 'rgba(56, 189, 248, 0.4)';
+                    ctx.font = 'bold 9px sans-serif';
+                    ctx.fillText(`${['K', 'L', 'M', 'N'][i] || i+1}껍질${isOuterShell && this.highlightOuter ? ' (바깥)' : ''}`, cx + r - 20, cy - 6);
+                }
+
+                this.photons.forEach((p, idx) => {
+                    p.radius += p.speed;
+                    p.opacity -= 0.015;
+                    if (p.opacity <= 0) {
+                        this.photons.splice(idx, 1);
+                        return;
+                    }
+
+                    ctx.strokeStyle = p.color;
+                    ctx.globalAlpha = p.opacity;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    for (let a = 0; a < Math.PI * 2; a += 0.1) {
+                        const waveR = p.radius + Math.sin(a * 16) * 5;
+                        const wx = cx + Math.cos(a) * waveR;
+                        const wy = cy + Math.sin(a) * waveR;
+                        if (a === 0) ctx.moveTo(wx, wy);
+                        else ctx.lineTo(wx, wy);
+                    }
+                    ctx.closePath();
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                });
+
+                this.nucleusPulse += 0.03;
+                const nRadius = 25 + Math.sin(this.nucleusPulse) * 1.5;
+                
+                const grad = ctx.createRadialGradient(cx, cy, 5, cx, cy, nRadius + 15);
+                grad.addColorStop(0, 'rgba(239, 68, 68, 0.45)');
+                grad.addColorStop(0.5, 'rgba(59, 130, 246, 0.3)');
+                grad.addColorStop(1, 'rgba(2, 6, 23, 0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(cx, cy, nRadius + 20, 0, Math.PI * 2);
+                ctx.fill();
+
+                const clusterCount = Math.min(this.element.protons, 12);
+                for (let i = 0; i < clusterCount; i++) {
+                    const angle = (i / clusterCount) * Math.PI * 2 + this.nucleusPulse * 0.1;
+                    const offset = 8 + (i % 2 === 0 ? 3 : 0);
+                    const px = cx + Math.cos(angle) * offset;
+                    const py = cy + Math.sin(angle) * offset;
+
+                    const isProton = i % 2 === 0;
+                    const pGrad = ctx.createRadialGradient(px - 2, py - 2, 1, px, py, 6);
+                    if (isProton) {
+                        pGrad.addColorStop(0, '#fca5a5');
+                        pGrad.addColorStop(1, '#ef4444');
+                    } else {
+                        pGrad.addColorStop(0, '#93c5fd');
+                        pGrad.addColorStop(1, '#2563eb');
+                    }
+                    ctx.fillStyle = pGrad;
+                    ctx.beginPath();
+                    ctx.arc(px, py, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 8px system-ui';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(isProton ? '+' : 'n', px, py);
+                }
+
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                ctx.shadowColor = '#000000';
+                ctx.shadowBlur = 4;
+                ctx.font = 'bold 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`${this.element.symbol}`, cx, cy - 1);
+                ctx.shadowBlur = 0;
+
+                this.electrons.forEach((e) => {
+                    e.angle += e.speed * this.electronSpeedMultiplier;
+                    const ex = cx + Math.cos(e.angle) * e.radius;
+                    const ey = cy + Math.sin(e.angle) * e.radius;
+
+                    const useHighlight = e.isOuter && this.highlightOuter;
+                    ctx.shadowColor = useHighlight ? '#f59e0b' : '#38bdf8';
+                    ctx.shadowBlur = 8;
+                    
+                    const eGrad = ctx.createRadialGradient(ex - 1.5, ey - 1.5, 0.5, ex, ey, 5.5);
+                    if (useHighlight) {
+                        eGrad.addColorStop(0, '#fef3c7');
+                        eGrad.addColorStop(0.4, '#f59e0b');
+                        eGrad.addColorStop(1, '#d97706');
+                    } else {
+                        eGrad.addColorStop(0, '#e0f2fe');
+                        eGrad.addColorStop(0.4, '#38bdf8');
+                        eGrad.addColorStop(1, '#0284c7');
+                    }
+                    
+                    ctx.fillStyle = eGrad;
+                    ctx.beginPath();
+                    ctx.arc(ex, ey, 5.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    
+                    ctx.fillStyle = '#020617';
+                    ctx.font = 'bold 9px system-ui';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('-', ex, ey - 0.5);
+                });
+            }
+        }
+
+        // --- 메인 React 앱 컴포넌트 ---
+        function App() {
+            // 메인 탭 모드 ('lab', 'game')
+            const [mainMode, setMainMode] = useState('lab');
+
+            // ==========================================
+            // [원자 실험실] 상태 모음
+            // ==========================================
+            const [view, setView] = useState('intro');
+            const [selectedElement, setSelectedElement] = useState(ELEMENT_DATA[0]);
+            const [highlightOuter, setHighlightOuter] = useState(true);
+            const [speed, setSpeed] = useState(1);
+            const [showGuide, setShowGuide] = useState(false);
+            const [copied, setCopied] = useState(false);
+            const [userAnswers, setUserAnswers] = useState({});
+            const [showExplanation, setShowExplanation] = useState({});
+            const [stats, setStats] = useState({ visitedElements: new Set([ELEMENT_DATA[0].no]), excitationCount: 0, maxOuterElectrons: 1 });
+            const [studentId, setStudentId] = useState('');
+            const [studentName, setStudentName] = useState('');
+            const [insight, setInsight] = useState('');
+            const [randomQuizzes, setRandomQuizzes] = useState([]);
+
+            const canvasRef = useRef(null);
+            const visualizerRef = useRef(null);
+
+            // ==========================================
+            // [타임어택 게임] 상태 모음
+            // ==========================================
+            const [taView, setTaView] = useState('intro'); // intro, playing, result
+            const [taDiff, setTaDiff] = useState('초급'); // 초급, 중급, 고급, 극악
+            const [taHint, setTaHint] = useState('all'); // name, symbol, all
+            
+            const [taQueue, setTaQueue] = useState([]);
+            const [taCurrent, setTaCurrent] = useState(null);
+            const [taFilled, setTaFilled] = useState(new Set());
+            const [taWrongFlash, setTaWrongFlash] = useState({ id: null, trigger: 0 });
+            const [taHintFlash, setTaHintFlash] = useState({ id: null, trigger: 0 });
+            
+            const [taCorrect, setTaCorrect] = useState(0);
+            const [taWrong, setTaWrong] = useState(0);
+            const [taWrongStreak, setTaWrongStreak] = useState(0);
+            
+            const [taTimer, setTaTimer] = useState(0);
+            const [taIsLocked, setTaIsLocked] = useState(false);
+            const taStartTime = useRef(0);
+            const taAnimFrame = useRef(null);
+            
+            const [taSubmitName, setTaSubmitName] = useState('');
+            const [taSubmitStatus, setTaSubmitStatus] = useState('');
+            
+            // 랭킹(명예의 전당) 시스템 상태
+            const [showRankings, setShowRankings] = useState(false);
+            const [rankingsData, setRankingsData] = useState([]);
+            const [rankingsLoading, setRankingsLoading] = useState(false);
+
+            // 공통 시스템
+            const [isLoading, setIsLoading] = useState(false);
+            const [customAlert, setCustomAlert] = useState(null);
+
+            // === [추가된 통합 기능 및 앱스 스크립트 코드] ===
+            const giveUpTaGame = () => {
+                cancelAnimationFrame(taAnimFrame.current);
+                setTaView('intro');
+                triggerCustomAlert('🏳️ 게임 포기', '타임어택을 중단하고 처음 화면으로 돌아왔습니다.');
+            };
+
+            const APP_SCRIPT_CODE = `function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var data = JSON.parse(e.postData.contents);
+  
+  if (data.type === 'lab') {
+    var sheetName = "실험실_보고서";
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      sheet = ss.insertSheet(sheetName);
+      sheet.appendRow(["제출 시간", "학번", "이름", "원소 탐색수", "에너지 자극 수", "최대 외각전자수", "퀴즈 결과", "탐구 소감"]);
+    }
+    sheet.appendRow([data.timestamp, data.studentId, data.studentName, data.visitedCount + "개", data.excitationCount + "회", data.maxOuterElectrons + "개", data.quizScore, data.insight]);
+  } else if (data.type === 'game') {
+    var sheetName = "타임어택_랭킹";
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      sheet = ss.insertSheet(sheetName);
+      sheet.appendRow(["제출 시간", "이름", "난이도", "힌트 모드", "기록(초)"]);
+    }
+    sheet.appendRow([data.timestamp, data.playerName, data.difficulty, data.hintMode, parseFloat(data.elapsedTime)]);
+  }
+  return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet(e) {
+  if (e.parameter.action === 'getRankings') {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("타임어택_랭킹");
+    if (!sheet) return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+    
+    var data = sheet.getDataRange().getValues();
+    var rankings = [];
+    for (var i = 1; i < data.length; i++) {
+      var timeVal = parseFloat(data[i][4]);
+      if (!isNaN(timeVal)) {
+        rankings.push({ name: data[i][1], diff: data[i][2], hint: data[i][3], time: timeVal });
+      }
+    }
+    rankings.sort(function(a, b) { return a.time - b.time; });
+    return ContentService.createTextOutput(JSON.stringify(rankings.slice(0, 10))).setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+
+            const handleCopyCode = () => {
+                const text = APP_SCRIPT_CODE;
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        setCopied(true); setTimeout(() => setCopied(false), 2000);
+                    }).catch(() => fallbackCopyTextToClipboard(text));
+                } else {
+                    fallbackCopyTextToClipboard(text);
+                }
+            };
+
+            const fallbackCopyTextToClipboard = (text) => {
+                var textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    setCopied(true); setTimeout(() => setCopied(false), 2000);
+                } catch (err) {
+                    console.error('Fallback copy failed', err);
+                }
+                document.body.removeChild(textArea);
+            };
+
+            // --- [실험실] 로직 ---
+            useEffect(() => {
+                const shuffled = [...QUIZ_POOL].sort(() => 0.5 - Math.random());
+                setRandomQuizzes(shuffled.slice(0, 3));
+            }, []);
+
+            useEffect(() => {
+                if (mainMode === 'lab' && view === 'simulation' && canvasRef.current) {
+                    const canvas = canvasRef.current;
+                    const container = canvas.parentElement;
+                    canvas.width = container.clientWidth || 400;
+                    canvas.height = canvas.width;
+
+                    const viz = new AtomVisualizer(canvas, selectedElement, highlightOuter);
+                    viz.electronSpeedMultiplier = speed;
+                    visualizerRef.current = viz;
+
+                    let animFrameId;
+                    const renderLoop = () => {
+                        viz.draw();
+                        animFrameId = requestAnimationFrame(renderLoop);
+                    };
+                    renderLoop();
+
+                    const handleResize = () => {
+                        canvas.width = container.clientWidth || 400;
+                        canvas.height = container.clientWidth || 400;
+                        if (visualizerRef.current) visualizerRef.current.draw();
+                    };
+                    window.addEventListener('resize', handleResize);
+
+                    return () => {
+                        viz.running = false;
+                        cancelAnimationFrame(animFrameId);
+                        window.removeEventListener('resize', handleResize);
+                    };
+                }
+            }, [mainMode, view, selectedElement, highlightOuter]);
+
+            useEffect(() => {
+                if (visualizerRef.current) visualizerRef.current.electronSpeedMultiplier = speed;
+            }, [speed]);
+
+            const triggerExcitation = () => {
+                if (visualizerRef.current) {
+                    visualizerRef.current.emitPhoton('#e879f9');
+                    setStats(prev => ({ ...prev, excitationCount: prev.excitationCount + 1 }));
+                }
+            };
+
+            const selectElementAndLog = (elem) => {
+                setSelectedElement(elem);
+                const outerCount = elem.shells[elem.shells.length - 1];
+                setStats(prev => {
+                    const nextSet = new Set(prev.visitedElements);
+                    nextSet.add(elem.no);
+                    return { ...prev, visitedElements: nextSet, maxOuterElectrons: Math.max(prev.maxOuterElectrons, outerCount) };
+                });
+            };
+
+            // --- 공통 알림 ---
+            const triggerCustomAlert = (title, message) => setCustomAlert({ title, message });
+            const closeCustomAlert = () => setCustomAlert(null);
+
+            // --- [실험실] 보고서 제출 로직 ---
+            const submitLabData = async () => {
+                if (!studentId || !studentName || !insight) {
+                    triggerCustomAlert("❗ 정보 미입력", "학번, 이름 및 '알게 된 점' 보고서를 성실하게 작성해주세요.");
+                    return;
+                }
+                if (Object.keys(userAnswers).length < randomQuizzes.length) {
+                    triggerCustomAlert("📝 퀴즈 미완료", "실험 보고서 인증을 위해 OX 퀴즈 3문항을 모두 풀어주세요.");
+                    return;
+                }
+                if (!GOOGLE_SCRIPT_URL) {
+                    triggerCustomAlert("⚙️ 데이터베이스 연동 미완성", "우측 상단 '⚙️ DB 연동 가이드'를 클릭하여 통합 구글 스프레드시트 주소를 연결하면 데이터가 축적됩니다.");
+                    return;
+                }
+
+                setIsLoading(true);
+                let correctCount = 0;
+                randomQuizzes.forEach(quiz => { if (userAnswers[quiz.id] === quiz.a) correctCount++; });
+
+                const payload = {
+                    type: 'lab', // 실험실 기록 구분자
+                    timestamp: new Date().toLocaleString(),
+                    studentId, studentName,
+                    visitedCount: stats.visitedElements.size,
+                    excitationCount: stats.excitationCount,
+                    maxOuterElectrons: stats.maxOuterElectrons,
+                    quizScore: `${correctCount}/${randomQuizzes.length}`,
+                    insight: insight
+                };
+
+                try {
+                    await fetch(GOOGLE_SCRIPT_URL, {
+                        method: 'POST', mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    setIsLoading(false);
+                    setView('done');
+                } catch (e) {
+                    setIsLoading(false);
+                    triggerCustomAlert("❌ 오류 발생", "서버 전송 중 에러가 발생하였습니다. 인터넷 연결이나 배포 버전을 확인하세요.");
+                }
+            };
+
+            // --- [타임어택] 게임 및 명예의 전당 로직 ---
+            const startTaGame = () => {
+                let pool = GAME_ELEMENTS;
+                if (taDiff === '초급') pool = GAME_ELEMENTS.filter(e => e.n <= 20);
+                else if (taDiff === '중급') pool = GAME_ELEMENTS.filter(e => e.period <= 4);
+                else if (taDiff === '고급') pool = GAME_ELEMENTS.filter(e => e.period <= 5);
+
+                const shuffled = [...pool].sort(() => 0.5 - Math.random());
+                
+                setTaQueue(shuffled);
+                setTaCurrent(shuffled[0]);
+                setTaFilled(new Set());
+                setTaCorrect(0);
+                setTaWrong(0);
+                setTaWrongStreak(0);
+                setTaIsLocked(false);
+                setTaSubmitStatus('');
+                setTaView('playing');
+                
+                const hasAdv = taHint !== 'all';
+                taStartTime.current = Date.now() + (hasAdv ? 3000 : 0);
+                
+                const tick = () => {
+                    setTaTimer((Date.now() - taStartTime.current) / 1000);
+                    taAnimFrame.current = requestAnimationFrame(tick);
+                };
+                taAnimFrame.current = requestAnimationFrame(tick);
+            };
+
+            const endTaGame = useCallback(() => {
+                cancelAnimationFrame(taAnimFrame.current);
+                setTaTimer(Math.max(0, (Date.now() - taStartTime.current) / 1000));
+                setTaView('result');
+                playComplete();
+            }, []);
+
+            const handleTaCellClick = (n) => {
+                if (taIsLocked || taView !== 'playing' || !taCurrent || taFilled.has(n)) return;
+
+                if (n === taCurrent.n) {
+                    playCorrect();
+                    setTaFilled(prev => {
+                        const next = new Set(prev);
+                        next.add(n);
+                        return next;
+                    });
+                    setTaCorrect(prev => prev + 1);
+                    setTaWrongStreak(0);
+                    
+                    const nextQueue = taQueue.slice(1);
+                    setTaQueue(nextQueue);
+                    
+                    if (nextQueue.length === 0) {
+                        endTaGame();
+                    } else {
+                        setTaCurrent(nextQueue[0]);
+                    }
+                } else {
+                    playWrong();
+                    setTaWrong(prev => prev + 1);
+                    const currentStreak = taWrongStreak + 1;
+                    setTaWrongStreak(currentStreak);
+                    
+                    setTaWrongFlash({ id: n, trigger: Date.now() });
+                    setTaIsLocked(true);
+                    
+                    if (currentStreak >= 3) {
+                        setTaHintFlash({ id: taCurrent.n, trigger: Date.now() });
+                    }
+                    
+                    setTimeout(() => setTaIsLocked(false), 1200);
+                }
+            };
+
+            const submitTaRanking = async () => {
+                if (!taSubmitName.trim()) {
+                    triggerCustomAlert("❗ 정보 확인", "이름을 정확히 입력해주세요.");
+                    return;
+                }
+                if (!GOOGLE_SCRIPT_URL) {
+                    triggerCustomAlert("❗ 연결 불가", "교사 DB 스크립트가 등록되지 않았습니다.");
+                    return;
+                }
+
+                setTaSubmitStatus('로딩중');
+                const payload = {
+                    type: 'game', // 게임 랭킹 기록 구분자
+                    timestamp: new Date().toLocaleString(),
+                    playerName: taSubmitName,
+                    difficulty: taDiff,
+                    hintMode: taHint,
+                    elapsedTime: taTimer.toFixed(2)
+                };
+
+                try {
+                    await fetch(GOOGLE_SCRIPT_URL, {
+                        method: 'POST', mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    setTaSubmitStatus('완료');
+                } catch(e) {
+                    setTaSubmitStatus('에러');
+                }
+            };
+
+            const fetchRankings = async () => {
+                if (!GOOGLE_SCRIPT_URL) {
+                    triggerCustomAlert("❗ 연결 불가", "DB 주소가 설정되지 않아 명예의 전당을 불러올 수 없습니다. 교사 가이드를 확인하세요.");
+                    return;
+                }
+                setRankingsLoading(true);
+                setShowRankings(true);
+                try {
+                    // Apps Script doGet 함수 호출 (CORS를 자동 지원함)
+                    const res = await fetch(`${GOOGLE_SCRIPT_URL}?action=getRankings`);
+                    const data = await res.json();
+                    setRankingsData(data || []);
+                } catch (e) {
+                    console.error("랭킹 호출 오류:", e);
+                    setRankingsData([]);
+                } finally {
+                    setRankingsLoading(false);
+                }
+            };
+
+            const getCategoryColor = (category) => {
+                switch(category) {
+                    case 'nonmetal': return 'bg-purple-950 border-purple-500 hover:bg-purple-900/50';
+                    case 'noble': return 'bg-teal-950 border-teal-500 hover:bg-teal-900/50';
+                    case 'alkali': return 'bg-red-950 border-red-500 hover:bg-red-900/50';
+                    case 'alkaline-earth': return 'bg-orange-950 border-orange-500 hover:bg-orange-900/50';
+                    case 'metalloid': return 'bg-lime-950 border-lime-500 hover:bg-lime-900/50';
+                    default: return 'bg-blue-950 border-blue-500 hover:bg-blue-900/50';
+                }
+            };
+
+            // --- 렌더링 헬퍼 [실험실] ---
+            const renderLab = () => (
+                <main class="flex-grow flex flex-col p-4 md:p-6 max-w-7xl w-full mx-auto justify-center">
+                    {view === 'intro' && (
+                        <div class="max-w-3xl mx-auto w-full text-center py-8 px-4 flex flex-col items-center">
+                            <div class="relative w-48 h-48 mb-8 animate-float">
+                                <div class="absolute inset-0 rounded-full border border-brand-500/30 animate-pulse-slow"></div>
+                                <div class="absolute inset-4 rounded-full border border-purple-500/20 animate-pulse"></div>
+                                <div class="absolute inset-8 rounded-full border border-emerald-500/20 animate-ping" style={{ animationDuration: '3s' }}></div>
+                                <div class="absolute inset-0 flex items-center justify-center text-6xl">🔬</div>
+                            </div>
+                            <h2 class="text-3xl md:text-4xl font-extrabold mb-4 tracking-tight leading-tight">
+                                원자의 규칙을 찾아서 <br/>
+                                <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-cyan-300">원자 구조와 주기율표 탐구</span>
+                            </h2>
+                            <p class="text-slate-400 text-sm md:text-base max-w-xl mb-8 leading-relaxed">
+                                원자핵의 양성자 수와 전자 껍질의 규칙성을 확인해보세요.
+                                원자번호에 따른 '가장 바깥 전자 수'의 주기성을 직관적으로 관찰할 수 있습니다.
+                            </p>
+                            
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full mb-8 text-left">
+                                <div class="p-4 rounded-xl border border-brand-500/10 bg-slate-900/50">
+                                    <div class="text-xl mb-1">🌟 <b>실시간 원자 모형</b></div>
+                                    <p class="text-xs text-slate-400">보어 모형 기반 1~20번 원소 전자 배치 시각화</p>
+                                </div>
+                                <div class="p-4 rounded-xl border border-brand-500/10 bg-slate-900/50">
+                                    <div class="text-xl mb-1">🔍 <b>주기적 규칙 발견</b></div>
+                                    <p class="text-xs text-slate-400">족과 주기에 따른 원자가 전자의 변화 탐구</p>
+                                </div>
+                                <div class="p-4 rounded-xl border border-brand-500/10 bg-slate-900/50">
+                                    <div class="text-xl mb-1">📝 <b>탐구 보고서 제출</b></div>
+                                    <p class="text-xs text-slate-400">퀴즈를 풀고 알게 된 점을 구글 시트에 기록</p>
+                                </div>
+                            </div>
+
+                            <button onClick={() => setView('simulation')} class="bg-gradient-to-r from-brand-600 to-cyan-500 hover:from-brand-500 hover:to-cyan-400 text-white font-bold text-lg px-8 py-4 rounded-xl shadow-[0_0_20px_rgba(14,165,233,0.3)] active:scale-95 transition-all w-full sm:w-auto">
+                                🚀 실험 가상 연구소 입장하기
+                            </button>
+                        </div>
+                    )}
+
+                    {view === 'simulation' && (
+                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full">
+                            <div class="lg:col-span-7 flex flex-col gap-6">
+                                <div class="glass-panel rounded-2xl p-4 md:p-5 flex flex-col gap-3">
+                                    <div class="flex items-center justify-between">
+                                        <h3 class="text-sm font-semibold text-brand-300">📊 주기율표 선택 패널 (H - Ca)</h3>
+                                        <span class="text-[10px] text-slate-400">원소를 클릭하면 궤도 모형이 로딩됩니다.</span>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-8 gap-1 text-center text-xs mt-2 w-full">
+                                        {ELEMENT_DATA.map((el, i) => {
+                                            const isSelected = el === selectedElement;
+                                            // 수소(0) 뒤에 6칸 빈공간을 추가하여 헬륨이 8열(18족) 위치에 맞게 교정됨
+                                            const needGap = (i === 0) ? 6 : 0;
+                                            
+                                            return (
+                                                <React.Fragment key={el.no}>
+                                                    <button onClick={() => selectElementAndLog(el)} class={`p-1.5 rounded-lg border flex flex-col items-center justify-center font-bold h-10 md:h-12 transition-all ${isSelected ? 'ring-2 ring-brand-400 scale-105 z-10' : ''} ${getCategoryColor(el.category)}`}>
+                                                        <span class="text-[9px] text-slate-400">{el.no}</span>
+                                                        <span class="text-sm">{el.symbol}</span>
+                                                    </button>
+                                                    {needGap > 0 && <div class={`col-span-${needGap}`}></div>}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div class="glass-panel rounded-2xl p-4 md:p-5 flex flex-col gap-3">
+                                    <h4 class="font-bold text-sm text-brand-300">🔍 원소 백과사전 및 특징</h4>
+                                    <div class="border-t border-slate-800 pt-3">
+                                        <div class="flex items-baseline gap-2 mb-1.5">
+                                            <span class="text-2xl font-black text-brand-400">{selectedElement.symbol}</span>
+                                            <span class="text-sm font-semibold">{selectedElement.name} (번호 {selectedElement.no})</span>
+                                        </div>
+                                        <p class="text-xs text-slate-300 bg-slate-900/40 p-3 rounded-lg border border-slate-800">{selectedElement.desc}</p>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-3 mt-1.5 text-xs">
+                                        <div class="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                                            <div class="text-slate-400 mb-0.5">양성자 수 (핵전하량)</div>
+                                            <div class="font-bold text-red-400">+{selectedElement.protons}</div>
+                                        </div>
+                                        <div class="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                                            <div class="text-slate-400 mb-0.5">총 전자 수</div>
+                                            <div class="font-bold text-brand-400">-{selectedElement.protons}</div>
+                                        </div>
+                                        <div class="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                                            <div class="text-slate-400 mb-0.5">전자 껍질 (주기)</div>
+                                            <div class="font-bold text-fuchsia-400">{selectedElement.period}주기</div>
+                                        </div>
+                                        <div class="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                                            <div class="text-slate-400 mb-0.5">가장 바깥 전자 (족)</div>
+                                            <div class="font-bold text-amber-400">{selectedElement.group}족 ({selectedElement.shells[selectedElement.shells.length - 1]}개)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="lg:col-span-5 flex flex-col gap-6">
+                                <div class="glass-panel rounded-2xl p-4 flex flex-col relative overflow-hidden">
+                                    <span class="text-xs bg-slate-900/80 px-2.5 py-1 rounded-full border border-brand-500/20 text-brand-300 font-medium w-max mb-3">⚛️ 보어 원자 궤도 모형</span>
+                                    <div class="relative w-full aspect-square bg-slate-950 rounded-xl overflow-hidden border border-brand-500/10 shadow-[inner_0_0_20px_rgba(14,165,233,0.1)]">
+                                        <canvas ref={canvasRef} class="w-full h-full block"></canvas>
+                                    </div>
+                                    <div class="mt-4 flex flex-col gap-4">
+                                        <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-800/80 flex items-center justify-between">
+                                            <div class="flex flex-col gap-0.5">
+                                                <span class="text-xs font-semibold text-amber-300">💡 원자가 전자 강조</span>
+                                                <span class="text-[10px] text-slate-400">바깥 껍질 전자를 금색으로 밝힙니다.</span>
+                                            </div>
+                                            <button onClick={() => setHighlightOuter(!highlightOuter)} class={`px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95 ${highlightOuter ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-400'}`}>
+                                                {highlightOuter ? '켜짐' : '꺼짐'}
+                                            </button>
+                                        </div>
+                                        <div class="flex items-center justify-between gap-4">
+                                            <input type="range" min="0.2" max="2.5" step="0.1" value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} class="w-full accent-brand-500 h-1 bg-slate-800 rounded-lg cursor-pointer"/>
+                                            <button onClick={triggerExcitation} class="bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold text-xs px-4 py-3 rounded-lg shrink-0">✨ 에너지 자극</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="glass-panel rounded-2xl p-4 flex flex-col gap-3">
+                                    <button onClick={() => setView('report')} class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl active:scale-95 shadow-[0_0_15px_rgba(16,185,129,0.2)]">📝 원자 구조 탐구 보고서 작성 ➔</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {view === 'report' && (
+                        <div class="max-w-3xl mx-auto w-full flex flex-col gap-6">
+                            <div class="glass-panel rounded-2xl p-5 md:p-6 flex flex-col gap-4">
+                                <h3 class="font-bold text-sm text-brand-300 border-b border-slate-800 pb-2">👤 학생 인적 정보 입력 (나주중학교)</h3>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <input type="number" placeholder="학번 (예: 2201)" value={studentId} onChange={(e) => setStudentId(e.target.value)} class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm" />
+                                    <input type="text" placeholder="이름" value={studentName} onChange={(e) => setStudentName(e.target.value)} class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2.5 text-sm" />
+                                </div>
+                            </div>
+
+                            <div class="glass-panel rounded-2xl p-5 flex flex-col gap-4">
+                                <h3 class="font-bold text-sm text-brand-300 border-b border-slate-800 pb-2">📝 OX 퀴즈</h3>
+                                <div class="flex flex-col gap-4">
+                                    {randomQuizzes.map((quiz, qIdx) => {
+                                        const isAnswered = userAnswers[quiz.id] !== undefined;
+                                        const isCorrect = userAnswers[quiz.id] === quiz.a;
+                                        return (
+                                            <div key={quiz.id} class="p-4 rounded-xl bg-slate-950 border border-slate-800">
+                                                <p class="text-sm font-semibold mb-3">Q{qIdx + 1}. {quiz.q}</p>
+                                                <div class="grid grid-cols-2 gap-3">
+                                                    <button onClick={() => { setUserAnswers(p => ({...p, [quiz.id]: true})); setShowExplanation(p => ({...p, [quiz.id]: true})); }} disabled={isAnswered} class={`py-2 rounded-lg font-black transition-all ${userAnswers[quiz.id] === true ? (quiz.a ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500' : 'bg-red-600/30 text-red-300 border border-red-500') : 'bg-slate-900'} ${isAnswered && userAnswers[quiz.id] !== true ? 'opacity-40' : ''}`}>⭕ O</button>
+                                                    <button onClick={() => { setUserAnswers(p => ({...p, [quiz.id]: false})); setShowExplanation(p => ({...p, [quiz.id]: true})); }} disabled={isAnswered} class={`py-2 rounded-lg font-black transition-all ${userAnswers[quiz.id] === false ? (!quiz.a ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500' : 'bg-red-600/30 text-red-300 border border-red-500') : 'bg-slate-900'} ${isAnswered && userAnswers[quiz.id] !== false ? 'opacity-40' : ''}`}>❌ X</button>
+                                                </div>
+                                                {showExplanation[quiz.id] && <div class={`mt-3 p-3 rounded-lg text-xs border ${isCorrect ? 'bg-emerald-950/40 border-emerald-500/20 text-emerald-300' : 'bg-red-950/40 border-red-500/20 text-red-300'}`}><b>{isCorrect ? '정답!' : '오답!'}</b> {quiz.explain}</div>}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+
+                            <div class="glass-panel rounded-2xl p-5 flex flex-col gap-4">
+                                <h3 class="font-bold text-sm text-brand-300 border-b border-slate-800 pb-2">📑 알게 된 점</h3>
+                                <textarea rows="3" placeholder="주기율표의 가로줄(주기)과 세로줄(족)에 따른 전자 규칙성에 대해 배운 점을 쓰세요..." value={insight} onChange={(e) => setInsight(e.target.value)} class="bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm resize-none"></textarea>
+                            </div>
+
+                            <div class="flex gap-3">
+                                <button onClick={() => setView('simulation')} class="bg-slate-900 border border-slate-800 py-3.5 px-6 rounded-xl w-auto shrink-0">◀ 돌아가기</button>
+                                <button onClick={submitLabData} class="bg-brand-600 hover:bg-brand-500 text-white font-bold py-3.5 rounded-xl flex-grow">🚀 통합 보고서 제출하기</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {view === 'done' && (
+                        <div class="max-w-md mx-auto w-full text-center py-12 px-6 glass-panel rounded-2xl">
+                            <span class="text-6xl animate-bounce block mb-4">🎓</span>
+                            <h2 class="text-2xl font-bold mb-2">제출 완료!</h2>
+                            <p class="text-slate-400 text-sm mb-6">보고서가 시트에 기록되었습니다.</p>
+                            <button onClick={() => { setView('intro'); setUserAnswers({}); setShowExplanation({}); setInsight(''); }} class="bg-slate-900 border border-slate-800 py-3 px-6 rounded-xl w-full hover:bg-slate-800">🔄 다시 시작</button>
+                        </div>
+                    )}
+                </main>
+            );
+
+            // --- 렌더링 헬퍼 [타임어택] ---
+            const renderTimeAttack = () => {
+                // 모바일 최적화를 위해 초급,중급 모드일 때 빈 열(전이금속)을 압축 (18열 -> 8열)
+                const isCompact = taDiff === '초급' || taDiff === '중급';
+                const gridColsClass = isCompact ? 'grid-cols-8' : 'grid-cols-18';
+                const minWClass = isCompact ? 'min-w-[320px] md:min-w-[500px]' : 'min-w-[850px]';
+
+                return (
+                    <main class="flex-grow flex flex-col p-4 md:p-6 w-full mx-auto justify-center max-w-6xl">
+                        {taView === 'intro' && (
+                            <div class="max-w-md mx-auto w-full text-center">
+                                <div class="mb-8">
+                                    <h1 class="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-fuchsia-500 mb-2">⚗️ 주기율표<br/>타임어택</h1>
+                                    <p class="text-slate-400 text-sm">빈 주기율표에서 원소의 위치를 빠르게 찾아라!</p>
+                                </div>
+
+                                <div class="glass-panel rounded-2xl p-5 mb-5">
+                                    <h3 class="text-sm text-slate-400 mb-3 text-left font-bold">🎯 난이도 선택</h3>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        {[
+                                            { id: '초급', icon: '🟢', desc: '1~20번' },
+                                            { id: '중급', icon: '🟡', desc: '1~4주기' },
+                                            { id: '고급', icon: '🔴', desc: '1~5주기' },
+                                            { id: '극악', icon: '💀', desc: '전체 118개' }
+                                        ].map(d => (
+                                            <button key={d.id} onClick={() => setTaDiff(d.id)} class={`p-3 rounded-xl border-2 transition-all flex flex-col items-center ${taDiff === d.id ? 'border-cyan-400 bg-cyan-950/40 text-cyan-400' : 'border-slate-800 bg-slate-900/50 text-slate-500 hover:border-slate-700'}`}>
+                                                <span class="text-2xl mb-1">{d.icon}</span>
+                                                <span class="font-bold text-sm text-slate-200">{d.id}</span>
+                                                <span class="text-[10px] opacity-70">{d.desc}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div class="glass-panel rounded-2xl p-5 mb-6">
+                                    <h3 class="text-sm text-slate-400 mb-3 text-left font-bold">📋 출제 방식 <span class="text-lime-400 text-[10px] ml-2 font-normal">※ 족(분류) 색상은 항상 표시</span></h3>
+                                    <div class="grid grid-cols-3 gap-2">
+                                        {[
+                                            { id: 'name', icon: '🔤', name: '이름만', adv: true },
+                                            { id: 'symbol', icon: '⚛️', name: '기호만', adv: true },
+                                            { id: 'all', icon: '📖', name: '전체', adv: false }
+                                        ].map(h => (
+                                            <button key={h.id} onClick={() => setTaHint(h.id)} class={`p-2 rounded-xl border-2 transition-all flex flex-col items-center ${taHint === h.id ? 'border-fuchsia-500 bg-fuchsia-950/40 text-fuchsia-300' : 'border-slate-800 bg-slate-900/50 text-slate-500 hover:border-slate-700'}`}>
+                                                <span class="text-xl mb-1">{h.icon}</span>
+                                                <span class="font-bold text-xs text-slate-200">{h.name}</span>
+                                                {h.adv && <span class="mt-1 bg-green-900/60 text-green-400 border border-green-500/30 rounded-full px-2 py-0.5 text-[9px]">-3초 어드밴티지</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <button onClick={startTaGame} class="w-full py-4 rounded-xl font-black text-lg bg-gradient-to-r from-cyan-500 to-fuchsia-600 text-white shadow-[0_0_20px_rgba(192,38,211,0.3)] hover:opacity-90 active:scale-95 transition-all">
+                                    ▶ 타임어택 시작
+                                </button>
+                                <button onClick={fetchRankings} class="w-full mt-3 py-3 rounded-xl border border-slate-700 text-slate-300 text-sm font-bold hover:bg-slate-800 active:scale-95 transition-all flex justify-center items-center gap-2">
+                                    🏆 명예의 전당 보기
+                                </button>
+                            </div>
+                        )}
+
+                        {taView === 'playing' && (
+                            <div class="w-full flex flex-col items-center max-w-6xl mx-auto animate-fade-in">
+                                <div class="w-full flex flex-wrap justify-between items-center gap-3 mb-4">
+                                    <div class="flex gap-2 flex-wrap">
+                                        <div class={`px-4 py-1.5 rounded-full border border-slate-700 font-mono font-bold text-lg ${taTimer > 120 ? 'text-red-400 animate-pulse' : (taTimer < 0 ? 'text-lime-400' : 'text-cyan-400')} bg-slate-900`}>
+                                            ⏱ {taTimer.toFixed(2)}초
+                                        </div>
+                                        <div class="px-4 py-1.5 rounded-full border border-slate-700 bg-slate-900 text-sm font-bold flex items-center gap-2">
+                                            <span class="text-emerald-400">O {taCorrect}/{taQueue.length + taCorrect}</span>
+                                            <span class="text-slate-600">|</span>
+                                            <span class="text-red-400">X {taWrong}</span>
+                                        </div>
+                                        {taHint !== 'all' && <div class="px-3 py-1.5 rounded-full border border-lime-500/50 bg-lime-950/40 text-lime-400 text-xs font-bold flex items-center">⚡ -3초 어드밴티지</div>}
+                                        <button onClick={giveUpTaGame} class="px-3 py-1.5 rounded-full border border-red-500/50 bg-red-950/40 text-red-400 text-xs font-bold hover:bg-red-900/60 active:scale-95 transition-all flex items-center gap-1">
+                                            🏳️ 포기하기
+                                        </button>
+                                    </div>
+                                    <div class="px-3 py-1 rounded-full border border-slate-800 bg-slate-900 text-xs text-slate-400">
+                                        {taDiff} 모드
+                                    </div>
+                                </div>
+
+                                <div class="w-full h-2 bg-slate-900 rounded-full mb-4 overflow-hidden">
+                                    <div class="h-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 transition-all duration-300" style={{ width: `${(taCorrect / (taQueue.length + taCorrect)) * 100}%` }}></div>
+                                </div>
+
+                                <div class="w-full max-w-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-cyan-500/30 rounded-2xl p-6 text-center mb-6 shadow-lg relative overflow-hidden">
+                                    <div class="text-xs text-slate-500 mb-2">이 원소의 위치를 아래 주기율표에서 찾아 탭하세요!</div>
+                                    <div class="text-4xl font-black text-white mb-2">
+                                        {taHint === 'name' ? taCurrent?.name : taHint === 'symbol' ? taCurrent?.sym : `${taCurrent?.name} (${taCurrent?.sym})`}
+                                    </div>
+                                    <div class="text-sm font-bold text-cyan-400">{taCurrent?.category?.label || '분류 알 수 없음'}</div>
+                                    {taWrongStreak > 0 && <div class="absolute top-2 right-4 text-xs text-red-400 animate-pulse font-bold">연속 오답: {taWrongStreak}</div>}
+                                </div>
+
+                                {/* 반응형 타임어택 주기율표 그리드 */}
+                                <div class="w-full overflow-x-auto pb-4 custom-scrollbar flex justify-center">
+                                    <div class={`grid ${gridColsClass} gap-[3px] mx-auto select-none ${minWClass}`} style={{ gridTemplateRows: 'repeat(9, minmax(42px, 1fr))' }}>
+                                        {GAME_ELEMENTS.map(el => {
+                                            // 렌더링 범위 제한 로직 (초급, 중급, 고급 난이도에 따른 필터링)
+                                            let isVisible = true;
+                                            if (taDiff === '초급' && el.n > 20) isVisible = false;
+                                            else if (taDiff === '중급' && el.period > 4) isVisible = false;
+                                            else if (taDiff === '고급' && el.period > 5) isVisible = false;
+
+                                            // 모바일 최적화 (8칸 렌더링)시 컬럼 매핑
+                                            let targetCol = el.col;
+                                            if (isCompact) {
+                                                if (targetCol > 2 && targetCol < 13) isVisible = false; // 전이 금속 그룹 제거
+                                                targetCol = targetCol <= 2 ? targetCol : targetCol - 10;
+                                            }
+
+                                            if (!isVisible) return null; // 영역을 비움 -> Grid의 명시적 Row/Col 위치 덕분에 빈칸으로 완벽 유지됨
+
+                                            const isFilled = taFilled.has(el.n);
+                                            const isShake = taWrongFlash.id === el.n;
+                                            const isHintGlow = taHintFlash.id === el.n;
+                                            
+                                            // 기본 스타일 구성
+                                            let cellClasses = `rounded-md border flex flex-col items-center justify-center relative overflow-hidden transition-all duration-150 `;
+                                            
+                                            if (isFilled) {
+                                                cellClasses += ` ${el.category.id} border-opacity-100 opacity-100 scale-100 z-10`;
+                                            } else {
+                                                // 아직 안 채워진 셀 - 카테고리 배경색을 아주 옅게 주어 힌트 제공
+                                                cellClasses += ` bg-slate-800 border-slate-600 hover:border-cyan-400 hover:bg-slate-700 cursor-pointer active:scale-95 `;
+                                                cellClasses += ` shadow-[inset_0_0_10px_rgba(255,255,255,0.02)] `;
+                                            }
+
+                                            if (isShake && Date.now() - taWrongFlash.trigger < 400) {
+                                                cellClasses += ` bg-red-950 border-red-500 shake-animation z-20`;
+                                            }
+                                            if (isHintGlow && Date.now() - taHintFlash.trigger < 1600) {
+                                                cellClasses += ` hint-flash-animation`;
+                                            }
+                                            if (taIsLocked && !isFilled) {
+                                                cellClasses += ` opacity-60 pointer-events-none`;
+                                            }
+
+                                            return (
+                                                <div 
+                                                    key={el.n}
+                                                    style={{ gridColumn: targetCol, gridRow: el.row }}
+                                                    className={cellClasses}
+                                                    onClick={() => handleTaCellClick(el.n)}
+                                                >
+                                                    {isFilled ? (
+                                                        // 채워진 정답 셀의 정보
+                                                        <>
+                                                            <span class="text-[9px] text-slate-300 absolute top-0.5 left-1 leading-none">{el.n}</span>
+                                                            <span class="font-bold text-sm text-white leading-tight mt-1">{el.sym}</span>
+                                                            <span class="text-[8px] text-slate-200 leading-none mb-0.5">{el.name}</span>
+                                                        </>
+                                                    ) : (
+                                                        // 미답변 빈 셀의 구조적 힌트 (원자 번호 은은하게 표시)
+                                                        <>
+                                                            <span class="absolute inset-0 flex items-center justify-center text-slate-500/20 text-lg md:text-2xl font-black pointer-events-none z-0">{el.n}</span>
+                                                            <div class={`absolute bottom-0 w-full h-1 opacity-40 ${el.category.id.replace('cat-', 'bg-')}`}></div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                        {/* 란타넘/악티늄족 분리 여백 */}
+                                        <div class={`${isCompact ? 'col-span-8' : 'col-span-18'} h-[10px]`} style={{ gridRow: 7 }}></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {taView === 'result' && (
+                            <div class="max-w-md mx-auto w-full glass-panel rounded-3xl p-8 text-center animate-fade-in relative z-10">
+                                <h2 class="text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-fuchsia-500 mb-2">🎉 완주 성공!</h2>
+                                <div class="text-5xl font-black text-white mb-2 flex justify-center items-end gap-1">
+                                    {taTimer.toFixed(2)}<span class="text-xl text-cyan-400 mb-1">초</span>
+                                </div>
+                                
+                                {taHint !== 'all' && <div class="text-xs text-lime-400 font-bold mb-4">⚡ {taHint === 'name' ? '이름만' : '기호만'} 모드 (-3초 반영)</div>}
+                                
+                                <div class="flex flex-col gap-1 text-sm text-slate-400 mb-6 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+                                    <div>{GAME_ELEMENTS.filter(e => e.period <= (taDiff==='초급'?0:(taDiff==='중급'?4:(taDiff==='고급'?5:9))) || (taDiff==='초급'&&e.n<=20)).length}개 완료 · {taDiff} 모드</div>
+                                    <div class={taWrong > 0 ? "text-red-400" : "text-lime-400"}>{taWrong > 0 ? `오답 ${taWrong}회 발생` : '오답 없이 완벽!'}</div>
+                                </div>
+
+                                <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-5 mb-6 text-left">
+                                    <div class="text-xs text-slate-500 mb-3 text-center font-bold">🏆 명예의 전당 기록 남기기</div>
+                                    <div class="flex flex-col gap-2">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-slate-400 w-10">소속</span>
+                                            <input type="text" value="1학교" disabled class="bg-slate-900 border border-slate-700 text-slate-500 px-3 py-2 rounded-lg text-sm flex-grow opacity-70 cursor-not-allowed"/>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-slate-400 w-10">이름</span>
+                                            <input type="text" value={taSubmitName} onChange={(e) => setTaSubmitName(e.target.value)} placeholder="학생 실명 입력" maxLength={12} class="bg-slate-900 border border-slate-700 text-white px-3 py-2 rounded-lg text-sm flex-grow focus:outline-none focus:border-cyan-500 transition-colors" disabled={taSubmitStatus === '완료' || taSubmitStatus === '로딩중'}/>
+                                        </div>
+                                    </div>
+                                    {taSubmitStatus === '' && (
+                                        <button onClick={submitTaRanking} class="w-full mt-4 py-2.5 rounded-lg bg-cyan-900/40 border border-cyan-500/50 text-cyan-400 font-bold text-sm hover:bg-cyan-900/60 transition-colors">
+                                            통합 DB에 랭킹 제출하기
+                                        </button>
+                                    )}
+                                    {taSubmitStatus === '로딩중' && <div class="mt-4 text-center text-xs text-slate-400 py-2.5">업로드 중...</div>}
+                                    {taSubmitStatus === '완료' && <div class="mt-4 text-center text-sm font-bold text-lime-400 py-2.5">✅ 랭킹에 무사히 등재되었습니다!</div>}
+                                    {taSubmitStatus === '에러' && <div class="mt-4 text-center text-xs text-red-400 py-2.5">서버 통신 실패. 제출되지 않았습니다.</div>}
+                                </div>
+
+                                <div class="flex gap-3 mb-3">
+                                    <button onClick={() => setTaView('intro')} class="flex-1 py-3 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 transition-colors text-sm">
+                                        처음으로
+                                    </button>
+                                    <button onClick={startTaGame} class="flex-1 py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 to-purple-600 text-white font-bold hover:opacity-90 transition-opacity text-sm">
+                                        🔄 다시 시작
+                                    </button>
+                                </div>
+                                <button onClick={fetchRankings} class="w-full py-3 rounded-xl bg-slate-900 border border-slate-700 text-cyan-400 text-sm font-bold hover:bg-slate-800 active:scale-95 transition-all">
+                                    🏆 명예의 전당 보기
+                                </button>
+                            </div>
+                        )}
+                    </main>
+                );
+            };
+
+            return (
+                <div class="flex-grow flex flex-col justify-between text-slate-100">
+                    
+                    {/* 상단 네비게이션 헤더 및 탭 전환 */}
+                    <header class="glass-panel border-b border-brand-500/20 px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-40">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl animate-spin" style={{ animationDuration: '6s' }}>⚛️</span>
+                            <div class="hidden sm:block">
+                                <h1 class="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-brand-300 to-sky-100">통합 과학 웹앱</h1>
+                                <p class="text-[10px] text-brand-300/80">원자 구조 탐구 & 주기율표 게임</p>
+                            </div>
+                        </div>
+
+                        {/* 앱 모드 스위치 버튼 */}
+                        <div class="flex bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+                            <button onClick={() => setMainMode('lab')} class={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${mainMode === 'lab' ? 'bg-brand-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}>
+                                🧪 원자 실험실
+                            </button>
+                            <button onClick={() => setMainMode('game')} class={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-1 ${mainMode === 'game' ? 'bg-fuchsia-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}>
+                                ⏱️ 타임어택
+                            </button>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            {/* DB 가이드는 두 모드 모두에서 볼 수 있도록 처리 */}
+                            <button onClick={() => setShowGuide(true)} class="text-xs bg-slate-900/80 border border-brand-500/30 hover:border-brand-400 text-brand-300 px-3 py-1.5 rounded-lg active:scale-95 transition-all flex items-center gap-1.5 hidden sm:flex">
+                                ⚙️ 통합 DB 연동 가이드
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* 모드에 따른 화면 렌더링 분기 */}
+                    {mainMode === 'lab' ? renderLab() : renderTimeAttack()}
+
+                    {/* 랭킹 (명예의 전당) 전용 모달 */}
+                    {showRankings && (
+                        <div class="fixed inset-0 z-[150] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+                            <div class="glass-panel w-full max-w-sm rounded-2xl shadow-2xl border border-cyan-500/30 flex flex-col max-h-[85vh] overflow-hidden">
+                                <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
+                                    <h3 class="text-lg font-black text-cyan-400">🏆 명예의 전당</h3>
+                                    <button onClick={() => setShowRankings(false)} class="text-slate-400 hover:text-white text-xl font-bold">✕</button>
+                                </div>
+                                <div class="p-5 overflow-y-auto flex-grow flex flex-col gap-3">
+                                    {rankingsLoading ? (
+                                        <div class="py-10 flex flex-col items-center justify-center text-slate-400">
+                                            <div class="w-8 h-8 rounded-full border-2 border-cyan-500/30 border-t-cyan-400 animate-spin mb-3"></div>
+                                            구글 DB에서 랭킹을 불러오는 중...
+                                        </div>
+                                    ) : rankingsData.length === 0 ? (
+                                        <div class="py-10 text-center text-slate-400 text-sm">아직 등록된 타임어택 기록이 없습니다.</div>
+                                    ) : (
+                                        rankingsData.map((rank, idx) => (
+                                            <div key={idx} class="bg-slate-900/60 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+                                                <div class="flex items-center gap-3">
+                                                    <div class={`w-6 text-center font-black ${idx === 0 ? 'text-yellow-400 text-lg' : idx === 1 ? 'text-slate-300' : idx === 2 ? 'text-amber-600' : 'text-slate-500'}`}>
+                                                        {idx + 1}
+                                                    </div>
+                                                    <div class="flex flex-col">
+                                                        <span class="font-bold text-sm text-white">{rank.name}</span>
+                                                        <span class="text-[10px] text-slate-400">{rank.diff} 모드 / {rank.hint === 'all' ? '전체' : rank.hint === 'name' ? '이름' : '기호'}</span>
+                                                    </div>
+                                                </div>
+                                                <div class="text-right text-cyan-400 font-mono font-bold">{rank.time.toFixed(2)}초</div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                                <div class="p-4 bg-slate-950/80 border-t border-slate-800">
+                                    <button onClick={() => setShowRankings(false)} class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">닫기</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 교사용 구글 스프레드시트 통합 연동 가이드 모달 */}
+                    {showGuide && (
+                        <div class="fixed inset-0 z-[250] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+                            <div class="glass-panel w-full max-w-2xl rounded-2xl shadow-2xl border border-brand-500/30 flex flex-col max-h-[90vh] overflow-hidden">
+                                <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/80">
+                                    <h3 class="text-base font-bold text-brand-300 flex items-center gap-2"><span>⚙️</span> 교사용 구글 DB 통합 연동 가이드</h3>
+                                    <button onClick={() => setShowGuide(false)} class="text-slate-400 hover:text-slate-100 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-900">✕</button>
+                                </div>
+                                <div class="p-6 overflow-y-auto text-xs leading-relaxed text-slate-300 flex flex-col gap-5">
+                                    <div>
+                                        <p class="mb-2 text-sm text-slate-100 font-semibold">1단계. Apps Script 소스 입력 (시트와 헤더가 자동 생성됩니다)</p>
+                                        <p class="mb-2">스크립트 에디터에 기존 내용을 모두 지우고 아래 코드를 정확히 복사해서 붙여넣습니다. (실행 시 '실험실_보고서' 탭과 '타임어택_랭킹' 탭이 자동으로 나뉘어 기록됩니다)</p>
+                                        <div class="relative">
+                                            <pre class="bg-slate-950 p-4 rounded-lg overflow-x-auto font-mono text-[11px] text-emerald-400 border border-slate-800 max-h-64 whitespace-pre">
+{APP_SCRIPT_CODE}
+                                            </pre>
+                                            <button onClick={handleCopyCode} class="absolute top-2 right-2 bg-brand-600 hover:bg-brand-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-md text-xs transition-colors">
+                                                {copied ? "✅ 복사 완료!" : "📄 전체 코드 복사"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="bg-brand-500/10 border border-brand-500/30 p-3 rounded-xl text-[11px] text-brand-200">
+                                        <p class="font-bold mb-1">🔗 연동 방법 (필수):</p>
+                                        [웹 앱] 배포를 통해 얻은 긴 URL 주소를 본 HTML 파일 102번째 줄 부근의 <span class="font-mono font-bold bg-slate-900 px-1 py-0.5 rounded text-fuchsia-400">const GOOGLE_SCRIPT_URL = "여기에 입력";</span> 란에 기입하시면 실험실 보고서 및 명예의 전당 기능이 자동으로 완전 활성화됩니다.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 자체 제작 커스텀 얼럿 모달 */}
+                    {customAlert && (
+                        <div class="fixed inset-0 z-[300] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                            <div class="bg-slate-900 border border-brand-500/30 w-full max-w-sm rounded-xl overflow-hidden shadow-2xl">
+                                <div class="p-4 bg-slate-950 border-b border-slate-800"><h4 class="font-bold text-sm text-brand-300">{customAlert.title}</h4></div>
+                                <div class="p-4"><p class="text-xs text-slate-300 leading-relaxed">{customAlert.message}</p></div>
+                                <div class="p-3 bg-slate-950 flex justify-end">
+                                    <button onClick={closeCustomAlert} class="bg-brand-600 hover:bg-brand-500 text-slate-950 font-bold text-xs px-4 py-2 rounded-lg active:scale-95 transition-all">확인</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 로딩 스피너 */}
+                    {isLoading && (
+                        <div class="fixed inset-0 z-[200] bg-black/80 flex flex-col items-center justify-center gap-3">
+                            <div class="w-12 h-12 rounded-full border-4 border-brand-500/30 border-t-brand-400 animate-spin"></div>
+                            <p class="text-sm font-bold text-brand-300">구글 시트로 학생 기록 업로드 처리 중...</p>
+                        </div>
+                    )}
+
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
